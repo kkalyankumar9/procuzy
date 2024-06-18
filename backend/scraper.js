@@ -1,45 +1,51 @@
-const puppeteer = require('puppeteer');
+const axios = require("axios");
+const cheerio = require("cheerio");
 
-const scrapeMedium = async (topic) => {
-    const browser = await puppeteer.launch({
-        headless: true, // Set to false to see the browser interaction
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        // executablePath: '/path/to/your/chrome', // Comment out or remove this line
-    });
+async function scrapeDummyArticles(htmlContent) {
+  try {
+    const $ = cheerio.load(htmlContent);
 
-    const page = await browser.newPage();
+    const articles = $(".postArticle")
+      .map((index, element) => {
+        const title = $(element).find("h2").text().trim();
+        const subTitle = $(element).find("h3").text().trim();
+        const author = $(element).find(".author").text().trim();
+        const publicationDate = $(element).find("time").attr("datetime").trim();
+        const url = $(element).find("a").attr("href").trim();
 
-    try {
-        const url = `https://medium.com/search?q=${encodeURIComponent(topic)}`;
-        await page.goto(url, { waitUntil: 'networkidle2' });
+        return { title, subTitle, author, publicationDate, url };
+      })
+      .get();
 
-        const articles = await page.evaluate(() => {
-            const results = [];
-            const items = document.querySelectorAll('div.js-postListHandle > div');
+    return articles;
+  } catch (error) {
+    console.error("Scraping failed:", error);
+    throw error;
+  }
+}
 
-            items.forEach(item => {
-                const titleElement = item.querySelector('h3, h4');
-                const title = titleElement ? titleElement.innerText.trim() : 'No title';
-                const authorElement = item.querySelector('.postMetaInline-authorLockup a');
-                const author = authorElement ? authorElement.innerText.trim() : 'Unknown author';
-                const dateElement = item.querySelector('time');
-                const date = dateElement ? dateElement.getAttribute('datetime') : 'No date';
-                const linkElement = item.querySelector('a');
-                const link = linkElement ? linkElement.href : '#';
+async function fetchMedArticles(topic) {
+  try {
+    const response = await axios.get(`https://medium.com/feed/tag/${topic}`);
+    const $ = cheerio.load(response.data, { xmlMode: true });
 
-                results.push({ title, author, date, url: link });
-            });
+    const articles = $("item")
+      .map((index, element) => {
+        const title = $(element).find("title").text().trim();
+        const author = $(element).find("creator").text().trim(); // <dc:creator> in RSS feed
+        const publicationDate = $(element).find("pubDate").text().trim();
+        const url = $(element).find("link").text().trim();
 
-            return results.slice(0, 5); // Return only the top 5 articles
-        });
+        return { title, author, publicationDate, url };
+      })
+      .get()
+      .slice(0, 5); // Get only the first 5 articles
 
-        await browser.close();
-        return articles;
-    } catch (error) {
-        console.error('Error during scraping:', error);
-        await browser.close();
-        throw error;
-    }
-};
+    return articles;
+  } catch (error) {
+    console.error("Fetching Medium articles failed:", error);
+    throw error;
+  }
+}
 
-module.exports = scrapeMedium;
+module.exports = { scrapeDummyArticles, fetchMedArticles };

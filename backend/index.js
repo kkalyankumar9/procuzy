@@ -1,34 +1,121 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const scrapeMedium = require('./scraper');
+const express = require("express");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+const connectDB = require("./db");
+
+const { scrapeDummyArticles, fetchMedArticles } = require("./scraper");
+const ArticleModel = require("./model/article");
 
 const app = express();
+const port = 8000;
+
 app.use(bodyParser.json());
-app.use(cors());
+app.use(
+  cors({
+    credentials: true,
+  })
+);
 
-let articles = [];
+const dummyHtmlContent = `
+ <div class="postArticle">
+  <div class="mo mp mq mr ms mt mu mv mw mx">
+    <a class="af ag ah ai aj ak al am an ao ap aq ar as at" href="/article-1">
+      <h2 class="be jh my mz na nb nc nd ne nf ng nh ni nj nk nl nm nn no np nq nr ns nt nu nv nw ee ef eg ei ek bj">Article 1: Title</h2>
+      <div class="nx">
+        <h3 class="be b hk z ee ji ef eg jj ei ek fd">Article 1: Subtitle</h3>
+        <span class="author">Author 1</span>
+        <time datetime="2024-06-14">June 14, 2024</time>
+      </div>
+    </a>
+  </div>
+</div>
 
-app.post('/scrape', async (req, res) => {
-    const { topic } = req.body;
-    if (!topic) {
-        return res.status(400).send({ error: 'Topic is required' });
-    }
+<div class="postArticle">
+  <div class="mo mp mq mr ms mt mu mv mw mx">
+    <a class="af ag ah ai aj ak al am an ao ap aq ar as at" href="/article-2">
+      <h2 class="be jh my mz na nb nc nd ne nf ng nh ni nj nk nl nm nn no np nq nr ns nt nu nv nw ee ef eg ei ek bj">Article 2: Title</h2>
+      <div class="nx">
+        <h3 class="be b hk z ee ji ef eg jj ei ek fd">Article 2: Subtitle</h3>
+        <span class="author">Author 2</span>
+        <time datetime="2024-06-13">June 13, 2024</time>
+      </div>
+    </a>
+  </div>
+</div>
 
-    try {
-        articles = await scrapeMedium(topic);
-        res.send(articles);
-    } catch (error) {
-        console.error('Scraping failed:', error.message);
-        res.status(500).send({ error: 'Failed to scrape Medium', details: error.message });
-    }
+<div class="postArticle">
+  <div class="mo mp mq mr ms mt mu mv mw mx">
+    <a class="af ag ah ai aj ak al am an ao ap aq ar as at" href="/article-3">
+      <h2 class="be jh my mz na nb nc nd ne nf ng nh ni nj nk nl nm nn no np nq nr ns nt nu nv nw ee ef eg ei ek bj">Article 3: Title</h2>
+      <div class="nx">
+        <h3 class="be b hk z ee ji ef eg jj ei ek fd">Article 3: Subtitle</h3>
+        <span class="author">Author 3</span>
+        <time datetime="2024-06-12">June 12, 2024</time>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div class="postArticle">
+  <div class="mo mp mq mr ms mt mu mv mw mx">
+    <a class="af ag ah ai aj ak al am an ao ap aq ar as at" href="/article-4">
+      <h2 class="be jh my mz na nb nc nd ne nf ng nh ni nj nk nl nm nn no np nq nr ns nt nu nv nw ee ef eg ei ek bj">Article 4: Title</h2>
+      <div class="nx">
+        <h3 class="be b hk z ee ji ef eg jj ei ek fd">Article 4: Subtitle</h3>
+        <span class="author">Author 4</span>
+        <time datetime="2024-06-11">June 11, 2024</time>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div class="postArticle">
+  <div class="mo mp mq mr ms mt mu mv mw mx">
+    <a class="af ag ah ai aj ak al am an ao ap aq ar as at" href="/article-5">
+      <h2 class="be jh my mz na nb nc nd ne nf ng nh ni nj nk nl nm nn no np nq nr ns nt nu nv nw ee ef eg ei ek bj">Article 5: Title</h2>
+      <div class="nx">
+        <h3 class="be b hk z ee ji ef eg jj ei ek fd">Article 5: Subtitle</h3>
+        <span class="author">Author 5</span>
+        <time datetime="2024-06-10">June 10, 2024</time>
+      </div>
+    </a>
+  </div>
+</div>
+`;
+
+app.post("/scrape", async (req, res) => {
+  try {
+    const articles = await scrapeDummyArticles(dummyHtmlContent);
+    await ArticleModel.deleteMany({});
+    await ArticleModel.insertMany(articles);
+    res.json(articles);
+  } catch (error) {
+    console.error("Scraping failed:", error);
+    res.status(500).json({ error: "Scraping failed" });
+  }
 });
 
-app.get('/articles', (req, res) => {
-    res.send(articles);
+app.get("/articles", async (req, res) => {
+  try {
+    const articles = await ArticleModel.find({});
+    res.json(articles);
+  } catch (error) {
+    console.error("Error fetching articles:", error);
+    res.status(500).json({ error: "Failed to fetch articles" });
+  }
 });
 
-const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+app.get("/medium/:topic", async (req, res) => {
+  try {
+    const topic = req.params.topic;
+    const articles = await fetchMedArticles(topic);
+    res.json(articles);
+  } catch (error) {
+    console.error("Fetching Medium articles failed:", error);
+    res.status(500).json({ error: "Fetching Medium articles failed" });
+  }
+});
+
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
 });
